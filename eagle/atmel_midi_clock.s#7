@@ -16550,9 +16550,9 @@ Source: www.kingbright.com</description>
 <instance part="IC2" gate="D" x="124.46" y="91.44"/>
 <instance part="IC2" gate="E" x="124.46" y="76.2"/>
 <instance part="IC2" gate="F" x="124.46" y="60.96"/>
-<instance part="IC2" gate="P" x="-20.32" y="-12.7"/>
-<instance part="P+10" gate="1" x="-20.32" y="0"/>
-<instance part="GND8" gate="1" x="-20.32" y="-25.4"/>
+<instance part="IC2" gate="P" x="99.06" y="116.84"/>
+<instance part="P+10" gate="1" x="99.06" y="129.54"/>
+<instance part="GND8" gate="1" x="99.06" y="104.14"/>
 <instance part="LED1" gate="G$1" x="149.86" y="60.96" rot="R270"/>
 <instance part="R4" gate="G$1" x="162.56" y="60.96" rot="R180"/>
 <instance part="R6" gate="G$1" x="142.24" y="121.92"/>
@@ -16700,7 +16700,7 @@ Source: www.kingbright.com</description>
 <segment>
 <pinref part="IC2" gate="P" pin="VDD"/>
 <pinref part="P+10" gate="1" pin="+5V"/>
-<wire x1="-20.32" y1="-2.54" x2="-20.32" y2="-5.08" width="0.1524" layer="91"/>
+<wire x1="99.06" y1="127" x2="99.06" y2="124.46" width="0.1524" layer="91"/>
 </segment>
 <segment>
 <pinref part="R15" gate="G$1" pin="2"/>
@@ -16918,7 +16918,7 @@ Source: www.kingbright.com</description>
 <segment>
 <pinref part="IC2" gate="P" pin="VSS"/>
 <pinref part="GND8" gate="1" pin="GND"/>
-<wire x1="-20.32" y1="-22.86" x2="-20.32" y2="-20.32" width="0.1524" layer="91"/>
+<wire x1="99.06" y1="106.68" x2="99.06" y2="109.22" width="0.1524" layer="91"/>
 </segment>
 <segment>
 <pinref part="THRU1" gate="-2" pin="S"/>
