@@ -1,127 +1,130 @@
 #include <MIDI.h>
-#include "AH_MCP4922.h"
 
-#define LED 13   		    // LED pin on Arduino Uno
+#define START_PIN 10
+#define CLOCK_PIN 9
+#define CONTINUE_PIN 11
+#define STOP_PIN 12
 
-#define GATE_PIN 3
-#define VELOCITY_PIN 6
-#define PWM_OUT_PIN 5
 
-AH_MCP4922 AnalogOutput1(10,11,12,LOW,LOW);
-AH_MCP4922 AnalogOutput2(10,11,12,HIGH,LOW);
+#define DIVISOR_PIN A0
+int divisor = 1;
+int clockCount = 0;
 
-int liveNoteCount = 0;
-int pitchbendOffset = 0;
-int baseNoteFrequency;
+int startTriggerRemaining = 0, clockTriggerRemaining = 0, continueTriggerRemaining = 0, stopTriggerRemaining = 0;
+#define TRIGGER_PULSE_MS 10
 
 MIDI_CREATE_DEFAULT_INSTANCE();
 
-byte selectedChannel = 17;
 
-void handleNoteOn(byte channel, byte pitch, byte velocity)
-{
-  if (selectedChannel == 17) {
-    selectedChannel = channel;
-  }
-  else if (channel != selectedChannel) {
-    return;
-  }
-  
-  liveNoteCount++;
-  
-  baseNoteFrequency = (pitch - 12) * 42;
-  AnalogOutput1.setValue(baseNoteFrequency + pitchbendOffset);
-  AnalogOutput2.setValue(velocity * 32);
+void handleStart() {
+  digitalWrite(START_PIN, HIGH);
+  startTriggerRemaining = TRIGGER_PULSE_MS;
+  clockCount = 0;
+}
 
-  digitalWrite(GATE_PIN, HIGH);
-  digitalWrite(LED, HIGH);
-  analogWrite(VELOCITY_PIN, 2 * velocity);
- }
-
-void handleNoteOff(byte channel, byte pitch, byte velocity)
-{
-  if (channel != selectedChannel) {
-    return;
-  }
-  liveNoteCount--;
-  
-  if (liveNoteCount == 0) {
-    digitalWrite(GATE_PIN, LOW);
-    digitalWrite(LED, LOW);
-    analogWrite(VELOCITY_PIN, 0);
+void handleClock() {
+  clockCount++;
+  if (clockCount == divisor) {
+    digitalWrite(CLOCK_PIN, HIGH);
+    clockTriggerRemaining = TRIGGER_PULSE_MS;
+    clockCount = 0;
   }
 }
 
+void handleContinue() {
+  digitalWrite(CONTINUE_PIN, HIGH);
+  continueTriggerRemaining = TRIGGER_PULSE_MS;
+}
 
-void handleControlChange(byte channel, byte number, byte value)
-{
-  if (channel != selectedChannel) {
-    return;
-  }
-
+void handleStop() {
+  digitalWrite(STOP_PIN, HIGH);
+  stopTriggerRemaining = TRIGGER_PULSE_MS;
 }
 
 
-void handlePitchBend(byte channel, int bend)
-{
-  pitchbendOffset = bend >> 4;
-
-  AnalogOutput1.setValue(baseNoteFrequency + pitchbendOffset);
-}
-
-
-// -----------------------------------------------------------------------------
 
 void setup()
 {
-    int channelSpan = 1024 / 16;
-    int channelInput = analogRead(0);
-    selectedChannel = channelInput / channelSpan;
-
-    Serial.begin(115200);
-    Serial.println(channelInput);
-    Serial.println(selectedChannel);
     
-    pinMode(LED, OUTPUT);
-    pinMode(GATE_PIN, OUTPUT);
-    digitalWrite(GATE_PIN, LOW);
-    digitalWrite(LED, LOW);
+    pinMode(START_PIN, OUTPUT);
+    digitalWrite(START_PIN, LOW);
+    pinMode(CLOCK_PIN, OUTPUT);
+    digitalWrite(CLOCK_PIN, LOW);
+    pinMode(CONTINUE_PIN, OUTPUT);
+    digitalWrite(CONTINUE_PIN, LOW);
+    pinMode(STOP_PIN, OUTPUT);
+    digitalWrite(STOP_PIN, LOW);
 
-    delay(1000);
+    MIDI.setHandleStart(handleStart);
+    MIDI.setHandleClock(handleClock);
+    MIDI.setHandleContinue(handleContinue);
+    MIDI.setHandleStop(handleStop);
 
-    playScale(selectedChannel);
 
-    // calibrate 8V
-    baseNoteFrequency = (108 - 12) * 42;
-    AnalogOutput1.setValue(baseNoteFrequency);
-    // calibrate full velocity
-    AnalogOutput2.setValue(32 * 127);
+    cli();//stop interrupts
+    
+    //set timer1 interrupt at 1kHz
+    TCCR1A = 0;// set entire TCCR1A register to 0
+    TCCR1B = 0;// same for TCCR1B
+    TCNT1  = 0;//initialize counter value to 0;
+    // set timer count for 1khz increments
+    OCR1A = 1999;// = (16*10^6) / (1000*8) - 1
+    // turn on CTC mode
+    TCCR1B |= (1 << WGM12);
+    // Set CS11 bit for 8 prescaler
+    TCCR1B |= (1 << CS11);   
+    // enable timer compare interrupt
+    TIMSK1 |= (1 << OCIE1A);
+    
+    sei();//allow interrupts
 
-    MIDI.setHandleNoteOn(handleNoteOn);
-    MIDI.setHandleNoteOff(handleNoteOff);
-    MIDI.setHandlePitchBend(handlePitchBend);
-    MIDI.begin(selectedChannel);
+    
+    MIDI.begin();
 }
 
 
-void playScale(int channel) {
 
-  int note = 60;
+ISR(TIMER1_COMPA_vect) {
 
-  for (int i=0; i<channel; i++) {
-
-      handleNoteOn(channel, note, 100);
-      delay(100);
-      handleNoteOff(channel, note, 100);
-      delay(100);
-      note++;
+  if (startTriggerRemaining > 0) {
+    startTriggerRemaining--;
+    if (startTriggerRemaining == 0) {
+      digitalWrite(START_PIN, LOW);
+    }
   }
 
+  if (clockTriggerRemaining > 0) {
+    clockTriggerRemaining--;
+    if (clockTriggerRemaining == 0) {
+      digitalWrite(CLOCK_PIN, LOW);
+    }
+  }
+
+  if (continueTriggerRemaining > 0) {
+    continueTriggerRemaining--;
+    if (continueTriggerRemaining == 0) {
+      digitalWrite(CONTINUE_PIN, LOW);
+    }
+  }
+
+  if (stopTriggerRemaining > 0) {
+    stopTriggerRemaining--;
+    if (stopTriggerRemaining == 0) {
+      digitalWrite(STOP_PIN, LOW);
+    }
+  }
+  
 }
+
+
+int divisorRange = 1024 / 96;
+
 
 
 void loop()
 {
-    MIDI.read();
+//  divisor = 1 + analogRead(DIVISOR_PIN) / divisorRange;
+
+  MIDI.read();
 }
 
